@@ -1,0 +1,40 @@
+{
+    "name": "californiamountainsnake/longmantelegrambot-inline-keyboard-selection",
+    "type": "library",
+    "description": "Utils that allows to get from a user some values using inline keyboard inside a longman/telegram-bot command.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "CaliforniaMountainSnake",
+            "email": "CaliforniaMountainSnake1@yandex.ru"
+        }
+    ],
+    "require": {
+        "php": "^7.2",
+        "laravel/framework": "~5.8",
+        "longman/telegram-bot": "~0.55",
+        "californiamountainsnake/php-utils": "~1.0.5",
+        "californiamountainsnake/longmantelegrambot-utils": "~1.1.14",
+        "californiamountainsnake/longmantelegrambot-inlinemenu": "~1.1.5",
+        "californiamountainsnake/simple-laravel-auth-system": "~2.2.4"
+    },
+    "require-dev": {
+        "ext-dom": "*",
+        "phpunit/phpunit": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "CaliforniaMountainSnake\\InlineKeyboardSelection\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": [
+            "\"vendor/bin/phpunit\""
+        ]
+    }
+}
