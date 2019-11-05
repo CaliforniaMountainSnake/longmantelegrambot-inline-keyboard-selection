@@ -7,7 +7,7 @@ use CaliforniaMountainSnake\LongmanTelegrambotUtils\AdvancedSendUtils;
 use CaliforniaMountainSnake\LongmanTelegrambotUtils\ConversationUtils;
 use CaliforniaMountainSnake\LongmanTelegrambotUtils\SendUtils;
 use CaliforniaMountainSnake\UtilTraits\ArrayUtils;
-use Illuminate\Contracts\Container\BindingResolutionException;
+use Longman\TelegramBot\Entities\Message;
 use Longman\TelegramBot\Exception\TelegramException;
 
 /**
@@ -25,80 +25,74 @@ trait OneSelection
      */
     abstract public static function getCommandName(): string;
 
+
     /**
      * Select one value using InlineKeyboard.
      *
-     * @param string $_selection_unique_token
-     * @param array  $_keyboard_buttons
-     * @param string $_message_text
-     * @param string $_user_text
+     * @param array    $_keyboard_buttons             Multidimensional string array with keyboard buttons.
+     * @param string   $_keyboard_message_text        The text that will be shown to user.
+     * @param Message  $_user_message                 User's message telegram object.
+     * @param callable $_result_callback              The callback in which will be passed the results of selection
+     *                                                as a string parameter.
+     * @param bool     $_is_force_del_and_send        Always just delete the previous message and send a new one.
+     * @param bool     $_is_delete_message_on_success Do delete the message after selection has been completed?
      *
-     * @param bool   $_delete_message
-     *
-     * @return bool
-     * @throws BindingResolutionException
+     * @return null|mixed Return value of the result callback or null if a selection is still not completed.
      * @throws TelegramException
      */
     public function oneSelection(
-        string $_selection_unique_token,
         array $_keyboard_buttons,
-        string $_message_text,
-        string $_user_text,
-        bool $_delete_message = false
-    ): bool {
-        [$previousMsgId, $previousMsgType] = $this->getPrevMsgData($_selection_unique_token);
+        string $_keyboard_message_text,
+        Message $_user_message,
+        callable $_result_callback,
+        bool $_is_force_del_and_send = false,
+        bool $_is_delete_message_on_success = true
+    ) {
+        $text = $_user_message->getText(true) ?? '';
+        [$previousMsgId] = $this->getPrevMsgData($this->getOneSelectionTokenName());
         $keyboard = InlineButton::buttonsArray(self::getCommandName(), $_keyboard_buttons);
         $errors = [];
 
-        if ($previousMsgId === null) {
-            $this->showAnyMessage($_selection_unique_token, $_message_text, null, $errors, $keyboard);
-            return false;
+        if ($previousMsgId !== null) {
+            // Validation.
+            $availableValues = $this->array_keys_recursive($_keyboard_buttons);
+            if (!\in_array($text, $availableValues, false)) {
+                $errors[] = __('telegrambot/keyboard_selection.wrong_value_single');
+            }
+
+            // Success.
+            if (empty($errors)) {
+                if ($_is_delete_message_on_success) {
+                    $this->deleteMessage($previousMsgId);
+                }
+
+                // Clear temp conversation's notes.
+                $this->clearOneSelectionResult();
+                return $_result_callback($text);
+            }
         }
 
-        // Validation.
-        $availableValues = $this->array_keys_recursive($_keyboard_buttons);
-        if (!\in_array($_user_text, $availableValues, false)) {
-            $errors[] = __('telegrambot/keyboard_selection.wrong_value_single');
-        }
-
-        // Success.
-        if (empty($errors)) {
-            // Store result.
-            $this->setConversationNotes([
-                $this->getOneSelectionResultNoteName($_selection_unique_token) => $_user_text,
-            ]);
-
-            // Delete temp message data.
-            $this->deletePrevMsgData($_selection_unique_token);
-
-            // Delete temp message if necessary.
-            $_delete_message && $this->deleteMessage($previousMsgId);
-            return true;
-        }
-
-        $this->showAnyMessage($_selection_unique_token, $_message_text, null, $errors, $keyboard);
-        return false;
-    }
-
-    /**
-     * @param string $_selection_unique_token
-     *
-     * @return string|null
-     */
-    public function getOneSelectionResult(string $_selection_unique_token): ?string
-    {
-        return $this->getNote($this->getOneSelectionResultNoteName($_selection_unique_token));
+        $this->showAnyMessage($this->getOneSelectionTokenName(), $_keyboard_message_text, null, $errors, $keyboard,
+            null, null, $_is_force_del_and_send);
+        return null;
     }
 
     //------------------------------------------------------------------------------------------------------------------
 
     /**
-     * @param string $_selection_unique_token
-     *
+     * @throws TelegramException
+     */
+    private function clearOneSelectionResult(): void
+    {
+        // Delete temp message data in conversation's notes.
+        $this->deletePrevMsgData($this->getOneSelectionTokenName());
+    }
+
+    /**
      * @return string
      */
-    private function getOneSelectionResultNoteName(string $_selection_unique_token): string
+    private function getOneSelectionTokenName(): string
     {
-        return $_selection_unique_token . '_result';
+        return 'one_selection_result';
     }
 }

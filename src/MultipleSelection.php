@@ -8,10 +8,9 @@ use CaliforniaMountainSnake\LongmanTelegrambotUtils\ConversationUtils;
 use CaliforniaMountainSnake\LongmanTelegrambotUtils\SendUtils;
 use CaliforniaMountainSnake\SimpleLaravelAuthSystem\AuthValidatorService;
 use CaliforniaMountainSnake\UtilTraits\ArrayUtils;
-use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Validation\Rule;
-use Longman\TelegramBot\Entities\InlineKeyboard;
+use Longman\TelegramBot\Entities\Keyboard;
 use Longman\TelegramBot\Entities\Message;
 use Longman\TelegramBot\Exception\TelegramException;
 
@@ -38,40 +37,43 @@ trait MultipleSelection
     /**
      * Select multiple values using InlineKeyboard.
      *
-     * @param string  $_selection_unique_token Unique selection's note name.
-     * @param array   $_keyboard_buttons       Multidimensional string array with keyboard buttons.
-     * @param string  $_keyboard_message_text
-     * @param Message $_user_message           User's message
-     * @param bool    $_delete_message         Delete the message after selection?
+     * @param array    $_keyboard_buttons             Multidimensional string array with keyboard buttons.
+     * @param string   $_keyboard_message_text        The text that will be shown to user.
+     * @param Message  $_user_message                 User's message telegram object.
+     * @param callable $_result_callback              The callback in which will be passed the results of selection
+     *                                                as an array parameter.
+     * @param bool     $_is_force_del_and_send        Always just delete the previous message and send a new one.
+     * @param bool     $_is_delete_message_on_success Do delete the message after selection has been completed?
      *
-     * @return bool Закончен ли выбор значений.
-     * @throws BindingResolutionException
+     * @return null|mixed Return value of the result callback or null if a selection is still not completed.
      * @throws TelegramException
      */
     public function multipleSelection(
-        string $_selection_unique_token,
         array $_keyboard_buttons,
         string $_keyboard_message_text,
         Message $_user_message,
-        bool $_delete_message = true
-    ): bool {
+        callable $_result_callback,
+        bool $_is_force_del_and_send = false,
+        bool $_is_delete_message_on_success = true
+    ) {
         $text = $_user_message->getText(true) ?? '';
-        $selectionResult = $this->getMultipleSelectionResult($_selection_unique_token);
+        $selectionResult = $this->getMultipleSelectionResult();
 
         // Create selection.
         if ($selectionResult === null) {
-            $this->createMultipleSelectionResult($_selection_unique_token);
+            $this->createMultipleSelectionResult();
 
-            $this->showAnyMessage($_selection_unique_token, $_keyboard_message_text, null, null,
-                $this->buildMultipleSelectionKeyboard($_selection_unique_token, $_keyboard_buttons));
-            return false;
+            $this->showAnyMessage($this->getMultipleSelectionTokenName(), $_keyboard_message_text, null,
+                null, $this->buildMultipleSelectionKeyboard($_keyboard_buttons),
+                null, null, $_is_force_del_and_send);
+            return null;
         }
 
         // validate user's text.
         $validator = $this->getButtonsValidator($text, $_keyboard_buttons);
         if (!$validator->fails()) {
             // Update selected values.
-            $selectionResult = $this->updateMultipleSelectionResult($_selection_unique_token, $text);
+            $selectionResult = $this->updateMultipleSelectionResult($text);
 
             $validator = $this->getSelectedValuesNotEmptyValidator($selectionResult);
             $validator->fails();
@@ -82,116 +84,42 @@ trait MultipleSelection
         if (empty($errors->toArray())) {
             // Clear.
             if ($text === $this->getClearButtonName()) {
-                $this->updateMultipleSelectionResultNote($_selection_unique_token, []);
+                $this->updateMultipleSelectionResultNote([]);
             }
             // All.
             if ($text === $this->getAllButtonName()) {
-                $this->updateMultipleSelectionResultNote($_selection_unique_token,
-                    $this->array_keys_recursive($_keyboard_buttons));
+                $this->updateMultipleSelectionResultNote($this->array_keys_recursive($_keyboard_buttons));
             }
             // Ok.
             if ($text === $this->getOkButtonName()) {
-                if ($_delete_message) {
-                    [$previousMsgId, $previousMsgType] = $this->getPrevMsgData($_selection_unique_token);
+                if ($_is_delete_message_on_success) {
+                    [$previousMsgId] = $this->getPrevMsgData($this->getMultipleSelectionTokenName());
                     $this->deleteMessage($previousMsgId);
                 }
-                return true;
+
+                // Clear temp conversation's notes.
+                $this->clearMultipleSelectionResult();
+                return $_result_callback($selectionResult);
             }
         }
 
         // Update message.
-        $this->showAnyMessage($_selection_unique_token, $_keyboard_message_text, null, $errors->toArray(),
-            $this->buildMultipleSelectionKeyboard($_selection_unique_token, $_keyboard_buttons));
-        return false;
-    }
-
-    /**
-     * @param string $_selection_unique_token
-     *
-     * @return array|null
-     */
-    public function getMultipleSelectionResult(string $_selection_unique_token): ?array
-    {
-        return $this->getNote($this->getMultipleSelectionResultNote($_selection_unique_token));
+        $this->showAnyMessage($this->getMultipleSelectionTokenName(), $_keyboard_message_text, null,
+            $errors->toArray(), $this->buildMultipleSelectionKeyboard($_keyboard_buttons),
+            null, null, $_is_force_del_and_send);
+        return null;
     }
 
     //------------------------------------------------------------------------------------------------------------------
 
     /**
-     * @param string $_selection_unique_token
-     * @param array  $_new_value
+     * @param array $_keyboard_buttons
      *
-     * @throws TelegramException
+     * @return Keyboard
      */
-    private function updateMultipleSelectionResultNote(string $_selection_unique_token, array $_new_value): void
+    protected function buildMultipleSelectionKeyboard(array $_keyboard_buttons): Keyboard
     {
-        $this->setConversationNotes([
-            $this->getMultipleSelectionResultNote($_selection_unique_token) => $_new_value,
-        ]);
-    }
-
-    /**
-     * @param string $_selection_unique_token
-     * @param string $_text
-     *
-     * @return array
-     * @throws BindingResolutionException
-     * @throws TelegramException
-     */
-    private function updateMultipleSelectionResult(string $_selection_unique_token, string $_text): array
-    {
-        // Create selection if not exists.
-        $selectionResult = $this->getMultipleSelectionResult($_selection_unique_token);
-        if ($selectionResult === null) {
-            $selectionResult = $this->createMultipleSelectionResult($_selection_unique_token);
-            return $selectionResult;
-        }
-
-        // Skip command buttons.
-        if ($_text === $this->getOkButtonName() || $_text === $this->getClearButtonName()) {
-            return $selectionResult;
-        }
-
-        // Update values.
-        if (isset($selectionResult[$_text])) {
-            unset ($selectionResult[$_text]);
-        } else {
-            $selectionResult[$_text] = $_text;
-        }
-
-        $this->updateMultipleSelectionResultNote($_selection_unique_token, $selectionResult);
-        return $selectionResult;
-    }
-
-    /**
-     * @param string $_selection_unique_token
-     *
-     * @return array
-     * @throws TelegramException
-     */
-    private function createMultipleSelectionResult(string $_selection_unique_token): array
-    {
-        $result = $this->getMultipleSelectionResult($_selection_unique_token);
-        if ($result === null) {
-            $this->updateMultipleSelectionResultNote($_selection_unique_token, []);
-            return [];
-        }
-
-        return $result;
-    }
-
-    /**
-     * @param string $_selection_unique_token
-     * @param array  $_keyboard_buttons
-     *
-     * @return InlineKeyboard
-     * @throws BindingResolutionException
-     */
-    private function buildMultipleSelectionKeyboard(
-        string $_selection_unique_token,
-        array $_keyboard_buttons
-    ): InlineKeyboard {
-        $result = $this->getMultipleSelectionResult($_selection_unique_token) ?? [];
+        $result = $this->getMultipleSelectionResult() ?? [];
 
         \array_walk_recursive($_keyboard_buttons, function (&$visibleButton, &$realValue) use ($result) {
             $isButtonSelected = \in_array($realValue, $result, false);
@@ -208,12 +136,91 @@ trait MultipleSelection
         return InlineButton::buttonsArray(self::getCommandName(), $_keyboard_buttons);
     }
 
+    //------------------------------------------------------------------------------------------------------------------
+
+    /**
+     * @throws TelegramException
+     */
+    private function clearMultipleSelectionResult(): void
+    {
+        // Delete temp message data in conversation's notes.
+        $this->deletePrevMsgData($this->getMultipleSelectionTokenName());
+
+        // Delete the conversation's note with selection result.
+        $this->updateMultipleSelectionResultNote(null);
+    }
+
+    /**
+     * @return array|null
+     */
+    private function getMultipleSelectionResult(): ?array
+    {
+        return $this->getNote($this->getMultipleSelectionTokenName());
+    }
+
+    /**
+     * @param array $_new_value
+     *
+     * @throws TelegramException
+     */
+    private function updateMultipleSelectionResultNote(array $_new_value): void
+    {
+        $this->setConversationNotes([
+            $this->getMultipleSelectionTokenName() => $_new_value,
+        ]);
+    }
+
+    /**
+     * @param string $_text
+     *
+     * @return array
+     * @throws TelegramException
+     */
+    private function updateMultipleSelectionResult(string $_text): array
+    {
+        // Create selection if not exists.
+        $selectionResult = $this->getMultipleSelectionResult();
+        if ($selectionResult === null) {
+            $selectionResult = $this->createMultipleSelectionResult();
+            return $selectionResult;
+        }
+
+        // Skip command buttons.
+        if ($_text === $this->getOkButtonName() || $_text === $this->getClearButtonName()) {
+            return $selectionResult;
+        }
+
+        // Update values.
+        if (isset($selectionResult[$_text])) {
+            unset ($selectionResult[$_text]);
+        } else {
+            $selectionResult[$_text] = $_text;
+        }
+
+        $this->updateMultipleSelectionResultNote($selectionResult);
+        return $selectionResult;
+    }
+
+    /**
+     * @return array
+     * @throws TelegramException
+     */
+    private function createMultipleSelectionResult(): array
+    {
+        $result = $this->getMultipleSelectionResult();
+        if ($result === null) {
+            $this->updateMultipleSelectionResultNote([]);
+            return [];
+        }
+
+        return $result;
+    }
+
     /**
      * @param string $_current_text
      * @param array  $_keyboard_buttons
      *
      * @return Validator
-     * @throws BindingResolutionException
      */
     private function getButtonsValidator(string $_current_text, array $_keyboard_buttons): Validator
     {
@@ -230,7 +237,6 @@ trait MultipleSelection
      * @param array $_selected_values
      *
      * @return Validator
-     * @throws BindingResolutionException
      */
     private function getSelectedValuesNotEmptyValidator(array $_selected_values): Validator
     {
@@ -253,18 +259,15 @@ trait MultipleSelection
     //------------------------------------------------------------------------------------------------------------------
 
     /**
-     * @param string $_selection_unique_token
-     *
      * @return string
      */
-    private function getMultipleSelectionResultNote(string $_selection_unique_token): string
+    private function getMultipleSelectionTokenName(): string
     {
-        return $_selection_unique_token . '_result';
+        return 'multiple_selection_result';
     }
 
     /**
      * @return string
-     * @throws BindingResolutionException
      */
     private function getOkButtonName(): string
     {
@@ -273,7 +276,6 @@ trait MultipleSelection
 
     /**
      * @return string
-     * @throws BindingResolutionException
      */
     private function getClearButtonName(): string
     {
@@ -282,7 +284,6 @@ trait MultipleSelection
 
     /**
      * @return string
-     * @throws BindingResolutionException
      */
     private function getAllButtonName(): string
     {
@@ -291,7 +292,6 @@ trait MultipleSelection
 
     /**
      * @return string
-     * @throws BindingResolutionException
      */
     private function getSelectedValuePrefix(): string
     {

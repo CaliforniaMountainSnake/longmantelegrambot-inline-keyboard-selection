@@ -14,7 +14,7 @@
         "laravel/framework": "~5.8",
         "longman/telegram-bot": "~0.55",
         "californiamountainsnake/php-utils": "~1.0.5",
-        "californiamountainsnake/longmantelegrambot-utils": "~1.1.14",
+        "californiamountainsnake/longmantelegrambot-utils": "~1.1.22",
         "californiamountainsnake/longmantelegrambot-inlinemenu": "~1.1.5",
         "californiamountainsnake/simple-laravel-auth-system": "~2.2.4"
     },
