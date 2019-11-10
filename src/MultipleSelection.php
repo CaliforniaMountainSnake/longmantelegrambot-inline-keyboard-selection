@@ -159,11 +159,11 @@ trait MultipleSelection
     }
 
     /**
-     * @param array $_new_value
+     * @param array|null $_new_value
      *
      * @throws TelegramException
      */
-    private function updateMultipleSelectionResultNote(array $_new_value): void
+    private function updateMultipleSelectionResultNote(?array $_new_value): void
     {
         $this->setConversationNotes([
             $this->getMultipleSelectionTokenName() => $_new_value,
