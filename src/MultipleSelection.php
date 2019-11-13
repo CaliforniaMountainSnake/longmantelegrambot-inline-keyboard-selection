@@ -37,13 +37,14 @@ trait MultipleSelection
     /**
      * Select multiple values using InlineKeyboard.
      *
-     * @param array    $_keyboard_buttons             Multidimensional string array with keyboard buttons.
-     * @param string   $_keyboard_message_text        The text that will be shown to user.
-     * @param Message  $_user_message                 User's message telegram object.
-     * @param callable $_result_callback              The callback in which will be passed the results of selection
-     *                                                as an array parameter.
-     * @param bool     $_is_force_del_and_send        Always just delete the previous message and send a new one.
-     * @param bool     $_is_delete_message_on_success Do delete the message after selection has been completed?
+     * @param array      $_keyboard_buttons             Multidimensional string array with keyboard buttons.
+     * @param string     $_keyboard_message_text        The text that will be shown to user.
+     * @param Message    $_user_message                 User's message telegram object.
+     * @param callable   $_result_callback              The callback in which will be passed the results of selection
+     *                                                  as an array parameter.
+     * @param array|null $_preselected_values
+     * @param bool       $_is_force_del_and_send        Always just delete the previous message and send a new one.
+     * @param bool       $_is_delete_message_on_success Do delete the message after selection has been completed?
      *
      * @return null|mixed Return value of the result callback or null if a selection is still not completed.
      * @throws TelegramException
@@ -53,6 +54,7 @@ trait MultipleSelection
         string $_keyboard_message_text,
         Message $_user_message,
         callable $_result_callback,
+        ?array $_preselected_values = null,
         bool $_is_force_del_and_send = false,
         bool $_is_delete_message_on_success = true
     ) {
@@ -63,11 +65,14 @@ trait MultipleSelection
         if ($selectionResult === null) {
             $this->createMultipleSelectionResult();
 
-            $this->showAnyMessage($this->getMultipleSelectionTokenName(), $_keyboard_message_text, null,
+            $this->showAnyMessage($this->getNoteNameMultipleSelectionResult(), $_keyboard_message_text, null,
                 null, $this->buildMultipleSelectionKeyboard($_keyboard_buttons),
                 null, null, $_is_force_del_and_send);
             return null;
         }
+
+        // Set preselected values if need.
+        $this->setPreselectedValues($_preselected_values);
 
         // validate user's text.
         $validator = $this->getButtonsValidator($text, $_keyboard_buttons);
@@ -84,16 +89,16 @@ trait MultipleSelection
         if (empty($errors->toArray())) {
             // Clear.
             if ($text === $this->getClearButtonName()) {
-                $this->updateMultipleSelectionResultNote([]);
+                $this->setMultipleSelectionResultNote([]);
             }
             // All.
             if ($text === $this->getAllButtonName()) {
-                $this->updateMultipleSelectionResultNote($this->array_keys_recursive($_keyboard_buttons));
+                $this->setMultipleSelectionResultNote($this->array_keys_recursive($_keyboard_buttons));
             }
             // Ok.
             if ($text === $this->getOkButtonName()) {
                 if ($_is_delete_message_on_success) {
-                    [$previousMsgId] = $this->getPrevMsgData($this->getMultipleSelectionTokenName());
+                    [$previousMsgId] = $this->getPrevMsgData($this->getNoteNameMultipleSelectionResult());
                     $this->deleteMessage($previousMsgId);
                 }
 
@@ -104,7 +109,7 @@ trait MultipleSelection
         }
 
         // Update message.
-        $this->showAnyMessage($this->getMultipleSelectionTokenName(), $_keyboard_message_text, null,
+        $this->showAnyMessage($this->getNoteNameMultipleSelectionResult(), $_keyboard_message_text, null,
             $errors->toArray(), $this->buildMultipleSelectionKeyboard($_keyboard_buttons),
             null, null, $_is_force_del_and_send);
         return null;
@@ -121,10 +126,10 @@ trait MultipleSelection
     {
         $result = $this->getMultipleSelectionResult() ?? [];
 
-        \array_walk_recursive($_keyboard_buttons, function (&$visibleButton, &$realValue) use ($result) {
+        \array_walk_recursive($_keyboard_buttons, function (&$visibleValue, &$realValue) use ($result) {
             $isButtonSelected = \in_array($realValue, $result, false);
             if ($isButtonSelected) {
-                $visibleButton = $this->getSelectedValuePrefix() . $visibleButton;
+                $visibleValue = $this->getSelectedValuePrefix() . $visibleValue;
             }
         });
 
@@ -144,10 +149,28 @@ trait MultipleSelection
     private function clearMultipleSelectionResult(): void
     {
         // Delete temp message data in conversation's notes.
-        $this->deletePrevMsgData($this->getMultipleSelectionTokenName());
+        $this->deletePrevMsgData($this->getNoteNameMultipleSelectionResult());
 
         // Delete the conversation's note with selection result.
-        $this->updateMultipleSelectionResultNote(null);
+        $this->deleteConversationNotes([
+            $this->getNoteNameMultipleSelectionResult(),
+            $this->getNoteNameIsMultipleSelectionPreselectedValuesSet(),
+        ]);
+    }
+
+    /**
+     * @return array
+     * @throws TelegramException
+     */
+    private function createMultipleSelectionResult(): array
+    {
+        $result = $this->getMultipleSelectionResult();
+        if ($result === null) {
+            $this->setMultipleSelectionResultNote([]);
+            return [];
+        }
+
+        return $result;
     }
 
     /**
@@ -155,7 +178,7 @@ trait MultipleSelection
      */
     private function getMultipleSelectionResult(): ?array
     {
-        return $this->getNote($this->getMultipleSelectionTokenName());
+        return $this->getNote($this->getNoteNameMultipleSelectionResult());
     }
 
     /**
@@ -163,10 +186,10 @@ trait MultipleSelection
      *
      * @throws TelegramException
      */
-    private function updateMultipleSelectionResultNote(?array $_new_value): void
+    private function setMultipleSelectionResultNote(?array $_new_value): void
     {
         $this->setConversationNotes([
-            $this->getMultipleSelectionTokenName() => $_new_value,
+            $this->getNoteNameMultipleSelectionResult() => $_new_value,
         ]);
     }
 
@@ -197,24 +220,29 @@ trait MultipleSelection
             $selectionResult[$_text] = $_text;
         }
 
-        $this->updateMultipleSelectionResultNote($selectionResult);
+        $this->setMultipleSelectionResultNote($selectionResult);
         return $selectionResult;
     }
 
     /**
-     * @return array
+     * @param array|null $_preselected_values
+     *
      * @throws TelegramException
      */
-    private function createMultipleSelectionResult(): array
+    private function setPreselectedValues(?array $_preselected_values): void
     {
-        $result = $this->getMultipleSelectionResult();
-        if ($result === null) {
-            $this->updateMultipleSelectionResultNote([]);
-            return [];
+        $isPreselectedValuesSet = $this->getNote($this->getNoteNameIsMultipleSelectionPreselectedValuesSet()) !== null;
+        if ($_preselected_values === null || $isPreselectedValuesSet) {
+            return;
         }
 
-        return $result;
+        $this->setConversationNotes([
+            $this->getNoteNameMultipleSelectionResult() => $_preselected_values,
+            $this->getNoteNameIsMultipleSelectionPreselectedValuesSet() => true,
+        ]);
     }
+
+    //------------------------------------------------------------------------------------------------------------------
 
     /**
      * @param string $_current_text
@@ -261,9 +289,17 @@ trait MultipleSelection
     /**
      * @return string
      */
-    private function getMultipleSelectionTokenName(): string
+    private function getNoteNameMultipleSelectionResult(): string
     {
         return 'multiple_selection_result';
+    }
+
+    /**
+     * @return string
+     */
+    private function getNoteNameIsMultipleSelectionPreselectedValuesSet(): string
+    {
+        return 'multiple_selection_is_preselected_values_set';
     }
 
     /**
