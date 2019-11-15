@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 
 
+## [2.1.2] - 2019-11-15
+- Fixed a bug with results' storage in MultipleSelection.
+
 ## [2.1.1] - 2019-11-15
 ### Fixed
 - Fixed a bug with preselected values in MultipleSelection.

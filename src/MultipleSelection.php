@@ -161,7 +161,7 @@ trait MultipleSelection
     private function createMultipleSelectionResult(?array $_preselected_values = null): array
     {
         $result = $this->getMultipleSelectionResult();
-        $defaultSet = $_preselected_values ?? [];
+        $defaultSet = \array_values($_preselected_values ?? []);
         if ($result === null) {
             $this->setMultipleSelectionResultNote($defaultSet);
             return $defaultSet;
@@ -207,10 +207,11 @@ trait MultipleSelection
         }
 
         // Update values.
-        if (isset($selectionResult[$_text])) {
-            unset ($selectionResult[$_text]);
+        $searchedKey = \array_search($_text, $selectionResult, false);
+        if ($searchedKey === false) {
+            $selectionResult[] = $_text;
         } else {
-            $selectionResult[$_text] = $_text;
+            unset ($selectionResult[$searchedKey]);
         }
 
         $this->setMultipleSelectionResultNote($selectionResult);
