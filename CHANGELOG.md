@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 
 
+## [2.1.1] - 2019-11-15
+### Fixed
+- Fixed a bug with preselected values in MultipleSelection.
+
 ## [2.1.0] - 2019-11-13
 ### Added
 - Added the support of preselected values for MultipleSelection. The signature of MultipleSelection::multipleSelection() has been changed.

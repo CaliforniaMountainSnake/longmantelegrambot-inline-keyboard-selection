@@ -63,16 +63,13 @@ trait MultipleSelection
 
         // Create selection.
         if ($selectionResult === null) {
-            $this->createMultipleSelectionResult();
+            $this->createMultipleSelectionResult($_preselected_values);
 
             $this->showAnyMessage($this->getNoteNameMultipleSelectionResult(), $_keyboard_message_text, null,
                 null, $this->buildMultipleSelectionKeyboard($_keyboard_buttons),
                 null, null, $_is_force_del_and_send);
             return null;
         }
-
-        // Set preselected values if need.
-        $this->setPreselectedValues($_preselected_values);
 
         // validate user's text.
         $validator = $this->getButtonsValidator($text, $_keyboard_buttons);
@@ -152,22 +149,22 @@ trait MultipleSelection
         $this->deletePrevMsgData($this->getNoteNameMultipleSelectionResult());
 
         // Delete the conversation's note with selection result.
-        $this->deleteConversationNotes([
-            $this->getNoteNameMultipleSelectionResult(),
-            $this->getNoteNameIsMultipleSelectionPreselectedValuesSet(),
-        ]);
+        $this->deleteConversationNotes([$this->getNoteNameMultipleSelectionResult()]);
     }
 
     /**
+     * @param array|null $_preselected_values
+     *
      * @return array
      * @throws TelegramException
      */
-    private function createMultipleSelectionResult(): array
+    private function createMultipleSelectionResult(?array $_preselected_values = null): array
     {
         $result = $this->getMultipleSelectionResult();
+        $defaultSet = $_preselected_values ?? [];
         if ($result === null) {
-            $this->setMultipleSelectionResultNote([]);
-            return [];
+            $this->setMultipleSelectionResultNote($defaultSet);
+            return $defaultSet;
         }
 
         return $result;
@@ -201,12 +198,8 @@ trait MultipleSelection
      */
     private function updateMultipleSelectionResult(string $_text): array
     {
-        // Create selection if not exists.
+        // Get selection result.
         $selectionResult = $this->getMultipleSelectionResult();
-        if ($selectionResult === null) {
-            $selectionResult = $this->createMultipleSelectionResult();
-            return $selectionResult;
-        }
 
         // Skip command buttons.
         if ($_text === $this->getOkButtonName() || $_text === $this->getClearButtonName()) {
@@ -222,24 +215,6 @@ trait MultipleSelection
 
         $this->setMultipleSelectionResultNote($selectionResult);
         return $selectionResult;
-    }
-
-    /**
-     * @param array|null $_preselected_values
-     *
-     * @throws TelegramException
-     */
-    private function setPreselectedValues(?array $_preselected_values): void
-    {
-        $isPreselectedValuesSet = $this->getNote($this->getNoteNameIsMultipleSelectionPreselectedValuesSet()) !== null;
-        if ($_preselected_values === null || $isPreselectedValuesSet) {
-            return;
-        }
-
-        $this->setConversationNotes([
-            $this->getNoteNameMultipleSelectionResult() => $_preselected_values,
-            $this->getNoteNameIsMultipleSelectionPreselectedValuesSet() => true,
-        ]);
     }
 
     //------------------------------------------------------------------------------------------------------------------
@@ -292,14 +267,6 @@ trait MultipleSelection
     private function getNoteNameMultipleSelectionResult(): string
     {
         return 'multiple_selection_result';
-    }
-
-    /**
-     * @return string
-     */
-    private function getNoteNameIsMultipleSelectionPreselectedValuesSet(): string
-    {
-        return 'multiple_selection_is_preselected_values_set';
     }
 
     /**
