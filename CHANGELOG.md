@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 
 
+## [3.0.3] - 2019-12-14
+### Fixed
+- Fixed a bug with handling command buttons.
+
 ## [3.0.2] - 2019-12-14
 ### Changed
 - The results of selections now pass in the parameter of success and back callbacks.

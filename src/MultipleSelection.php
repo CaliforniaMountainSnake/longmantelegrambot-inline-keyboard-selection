@@ -243,7 +243,7 @@ trait MultipleSelection
         $selectionResult = $this->getMultipleSelectionResult();
 
         // Skip command buttons.
-        if ($_text === $this->getOkButtonName() || $_text === $this->getClearButtonName()) {
+        if (\in_array($_text, $this->getAllCommandButtonsNames(), true)) {
             return $selectionResult;
         }
 
@@ -269,12 +269,8 @@ trait MultipleSelection
      */
     private function getButtonsValidator(string $_current_text, array $_keyboard_buttons): Validator
     {
-        $availableValues = \array_merge($this->array_keys_recursive($_keyboard_buttons), [
-            $this->getOkButtonName(),
-            $this->getBackButtonName(),
-            $this->getAllButtonName(),
-            $this->getClearButtonName()
-        ]);
+        $availableValues = \array_merge($this->array_keys_recursive($_keyboard_buttons),
+            $this->getAllCommandButtonsNames());
 
         return $this->getValidatorService()->makeValidator(
             ['text' => $_current_text],
@@ -318,6 +314,27 @@ trait MultipleSelection
     /**
      * @return string
      */
+    private function getSelectedValuePrefix(): string
+    {
+        return __('telegrambot/keyboard_selection.selected_value_prefix');
+    }
+
+    /**
+     * @return array
+     */
+    private function getAllCommandButtonsNames(): array
+    {
+        return [
+            $this->getOkButtonName(),
+            $this->getBackButtonName(),
+            $this->getAllButtonName(),
+            $this->getClearButtonName()
+        ];
+    }
+
+    /**
+     * @return string
+     */
     private function getOkButtonName(): string
     {
         return __('telegrambot/keyboard_selection.button_ok');
@@ -345,13 +362,5 @@ trait MultipleSelection
     private function getAllButtonName(): string
     {
         return __('telegrambot/keyboard_selection.button_all');
-    }
-
-    /**
-     * @return string
-     */
-    private function getSelectedValuePrefix(): string
-    {
-        return __('telegrambot/keyboard_selection.selected_value_prefix');
     }
 }
