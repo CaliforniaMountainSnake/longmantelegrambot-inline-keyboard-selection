@@ -37,14 +37,16 @@ trait MultipleSelection
     /**
      * Select multiple values using InlineKeyboard.
      *
-     * @param array      $_keyboard_buttons             Multidimensional string array with keyboard buttons.
-     * @param string     $_keyboard_message_text        The text that will be shown to user.
-     * @param Message    $_user_message                 User's message telegram object.
-     * @param callable   $_result_callback              The callback in which will be passed the results of selection
-     *                                                  as an array parameter.
-     * @param array|null $_preselected_values
-     * @param bool       $_is_force_del_and_send        Always just delete the previous message and send a new one.
-     * @param bool       $_is_delete_message_on_success Do delete the message after selection has been completed?
+     * @param array         $_keyboard_buttons             Multidimensional string array with keyboard buttons.
+     * @param string        $_keyboard_message_text        The text that will be shown to user.
+     * @param Message       $_user_message                 User's message telegram object.
+     * @param callable      $_save_data_callback           The callback in which will be passed the results of selection
+     *                                                     as an array parameter. Called first relative to success or back callbacks.
+     * @param callable      $_success_callback             The callback that will be executed in case of success selection.
+     * @param callable|null $_back_callback                The callback that will be executed if the user pressed "back" button.
+     * @param array|null    $_preselected_values           Default checked values on the keyboard.
+     * @param bool          $_is_force_del_and_send        Always just delete the previous message and send a new one.
+     * @param bool          $_is_delete_message_on_success Do delete the message after selection has been completed?
      *
      * @return null|mixed Return value of the result callback or null if a selection is still not completed.
      * @throws TelegramException
@@ -53,7 +55,9 @@ trait MultipleSelection
         array $_keyboard_buttons,
         string $_keyboard_message_text,
         Message $_user_message,
-        callable $_result_callback,
+        callable $_save_data_callback,
+        callable $_success_callback,
+        ?callable $_back_callback = null,
         ?array $_preselected_values = null,
         bool $_is_force_del_and_send = false,
         bool $_is_delete_message_on_success = true
@@ -66,7 +70,7 @@ trait MultipleSelection
             $this->createMultipleSelectionResult($_preselected_values);
 
             $this->showAnyMessage($this->getNoteNameMultipleSelectionResult(), $_keyboard_message_text, null,
-                null, $this->buildMultipleSelectionKeyboard($_keyboard_buttons),
+                null, $this->buildMultipleSelectionKeyboard($_keyboard_buttons, $_back_callback),
                 null, null, $_is_force_del_and_send);
             return null;
         }
@@ -88,26 +92,34 @@ trait MultipleSelection
             if ($text === $this->getClearButtonName()) {
                 $this->setMultipleSelectionResultNote([]);
             }
+
             // All.
             if ($text === $this->getAllButtonName()) {
                 $this->setMultipleSelectionResultNote($this->array_keys_recursive($_keyboard_buttons));
             }
-            // Ok.
-            if ($text === $this->getOkButtonName()) {
-                if ($_is_delete_message_on_success) {
-                    [$previousMsgId] = $this->getPrevMsgData($this->getNoteNameMultipleSelectionResult());
-                    $this->deleteMessage($previousMsgId);
-                }
 
-                // Clear temp conversation's notes.
+            // Ok
+            if ($text === $this->getOkButtonName()) {
+                $this->deleteMultipleSelectionMsgIfNeed($_is_delete_message_on_success);
                 $this->clearMultipleSelectionResult();
-                return $_result_callback($selectionResult);
+                $_save_data_callback($selectionResult);
+
+                return $_success_callback();
+            }
+
+            // Back
+            if ($_back_callback !== null && $text === $this->getBackButtonName()) {
+                $this->deleteMultipleSelectionMsgIfNeed($_is_delete_message_on_success);
+                $this->clearMultipleSelectionResult();
+                $_save_data_callback($selectionResult);
+
+                return $_back_callback();
             }
         }
 
         // Update message.
         $this->showAnyMessage($this->getNoteNameMultipleSelectionResult(), $_keyboard_message_text, null,
-            $errors->toArray(), $this->buildMultipleSelectionKeyboard($_keyboard_buttons),
+            $errors->toArray(), $this->buildMultipleSelectionKeyboard($_keyboard_buttons, $_back_callback),
             null, null, $_is_force_del_and_send);
         return null;
     }
@@ -115,12 +127,15 @@ trait MultipleSelection
     //------------------------------------------------------------------------------------------------------------------
 
     /**
-     * @param array $_keyboard_buttons
+     * @param array         $_keyboard_buttons
+     * @param callable|null $_back_callback
      *
      * @return Keyboard
      */
-    protected function buildMultipleSelectionKeyboard(array $_keyboard_buttons): Keyboard
-    {
+    protected function buildMultipleSelectionKeyboard(
+        array $_keyboard_buttons,
+        ?callable $_back_callback = null
+    ): Keyboard {
         $result = $this->getMultipleSelectionResult() ?? [];
 
         \array_walk_recursive($_keyboard_buttons, function (&$visibleValue, &$realValue) use ($result) {
@@ -130,15 +145,41 @@ trait MultipleSelection
             }
         });
 
-        $_keyboard_buttons[] = [
+        $buttonsRowExtra = [];
+        $buttonsRowPermanent = [
             $this->getClearButtonName() => $this->getClearButtonName(),
             $this->getAllButtonName() => $this->getAllButtonName(),
-            $this->getOkButtonName() => $this->getOkButtonName(),
         ];
+
+        if ($_back_callback === null) {
+            $buttonsRowPermanent[$this->getOkButtonName()] = $this->getOkButtonName();
+        } else {
+            $buttonsRowExtra = [
+                $this->getBackButtonName() => $this->getBackButtonName(),
+                $this->getOkButtonName() => $this->getOkButtonName(),
+            ];
+        }
+
+        $_keyboard_buttons[] = $buttonsRowPermanent;
+        !empty($buttonsRowExtra) && $_keyboard_buttons[] = $buttonsRowExtra;
+
         return InlineButton::buttonsArray(self::getCommandName(), $_keyboard_buttons);
     }
 
     //------------------------------------------------------------------------------------------------------------------
+
+    /**
+     * @param bool $_is_delete_message
+     */
+    private function deleteMultipleSelectionMsgIfNeed(bool $_is_delete_message): void
+    {
+        if (!$_is_delete_message) {
+            return;
+        }
+
+        [$previousMsgId] = $this->getPrevMsgData($this->getNoteNameMultipleSelectionResult());
+        $this->deleteMessage($previousMsgId);
+    }
 
     /**
      * @throws TelegramException
@@ -228,8 +269,12 @@ trait MultipleSelection
      */
     private function getButtonsValidator(string $_current_text, array $_keyboard_buttons): Validator
     {
-        $availableValues = \array_merge($this->array_keys_recursive($_keyboard_buttons),
-            [$this->getOkButtonName(), $this->getAllButtonName(), $this->getClearButtonName()]);
+        $availableValues = \array_merge($this->array_keys_recursive($_keyboard_buttons), [
+            $this->getOkButtonName(),
+            $this->getBackButtonName(),
+            $this->getAllButtonName(),
+            $this->getClearButtonName()
+        ]);
 
         return $this->getValidatorService()->makeValidator(
             ['text' => $_current_text],
@@ -276,6 +321,14 @@ trait MultipleSelection
     private function getOkButtonName(): string
     {
         return __('telegrambot/keyboard_selection.button_ok');
+    }
+
+    /**
+     * @return string
+     */
+    private function getBackButtonName(): string
+    {
+        return __('telegrambot/keyboard_selection.button_back');
     }
 
     /**

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 
 
+## [3.0.0] - 2019-12-14
+### Changed
+- The signature of MultipleSelection has been changed. Now there are three callbacks: save_data_callback, success_callback and optional back_callback.
+
 ## [2.1.2] - 2019-11-15
 - Fixed a bug with results' storage in MultipleSelection.
 
