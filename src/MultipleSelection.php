@@ -40,7 +40,7 @@ trait MultipleSelection
      * @param array         $_keyboard_buttons             Multidimensional string array with keyboard buttons.
      * @param string        $_keyboard_message_text        The text that will be shown to user.
      * @param Message       $_user_message                 User's message telegram object.
-     * @param callable      $_save_data_callback           The callback in which will be passed the results of selection
+     * @param callable|null $_save_data_callback           The callback in which will be passed the results of selection
      *                                                     as an array parameter. Called first relative to success or back callbacks.
      * @param callable      $_success_callback             The callback that will be executed in case of success selection.
      * @param callable|null $_back_callback                The callback that will be executed if the user pressed "back" button.
@@ -55,7 +55,7 @@ trait MultipleSelection
         array $_keyboard_buttons,
         string $_keyboard_message_text,
         Message $_user_message,
-        callable $_save_data_callback,
+        ?callable $_save_data_callback,
         callable $_success_callback,
         ?callable $_back_callback = null,
         ?array $_preselected_values = null,
@@ -102,18 +102,18 @@ trait MultipleSelection
             if ($text === $this->getOkButtonName()) {
                 $this->deleteMultipleSelectionMsgIfNeed($_is_delete_message_on_success);
                 $this->clearMultipleSelectionResult();
-                $_save_data_callback($selectionResult);
+                $_save_data_callback !== null && $_save_data_callback($selectionResult);
 
-                return $_success_callback();
+                return $_success_callback($selectionResult);
             }
 
             // Back
             if ($_back_callback !== null && $text === $this->getBackButtonName()) {
                 $this->deleteMultipleSelectionMsgIfNeed($_is_delete_message_on_success);
                 $this->clearMultipleSelectionResult();
-                $_save_data_callback($selectionResult);
+                $_save_data_callback !== null && $_save_data_callback($selectionResult);
 
-                return $_back_callback();
+                return $_back_callback($selectionResult);
             }
         }
 

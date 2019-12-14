@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 
 
+## [3.0.2] - 2019-12-14
+### Changed
+- The results of selections now pass in the parameter of success and back callbacks.
+- save_data_callback is optional now.
+
 ## [3.0.1] - 2019-12-14
 ### Security
 - Updated composer dependencies and fix vulnerabilities founded by GitHub.
