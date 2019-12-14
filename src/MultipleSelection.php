@@ -81,8 +81,11 @@ trait MultipleSelection
             // Update selected values.
             $selectionResult = $this->updateMultipleSelectionResult($text);
 
-            $validator = $this->getSelectedValuesNotEmptyValidator($selectionResult);
-            $validator->fails();
+            // Check for emptiness only if "ok" button pressed.
+            if ($text === $this->getOkButtonName()) {
+                $validator = $this->getSelectedValuesNotEmptyValidator($selectionResult);
+                $validator->fails();
+            }
         }
         $errors = $validator->errors();
 

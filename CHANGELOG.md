@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 
 
+## [3.0.4] - 2019-12-14
+### Fixed
+- Now the selection is checked for emptiness only if "ok" button pressed.
+
 ## [3.0.3] - 2019-12-14
 ### Fixed
 - Fixed a bug with handling command buttons.
