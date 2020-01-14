@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 
 
+## [3.0.5] - 2020-01-14
+### Changed
+- The package californiamountainsnake/simple-laravel-auth-system has been updated to version ~3.0.
+
 ## [3.0.4] - 2019-12-14
 ### Fixed
 - Now the selection is checked for emptiness only if "ok" button pressed.

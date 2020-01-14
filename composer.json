@@ -16,7 +16,7 @@
         "californiamountainsnake/php-utils": "~1.0.5",
         "californiamountainsnake/longmantelegrambot-utils": "~1.1.22",
         "californiamountainsnake/longmantelegrambot-inlinemenu": "~1.1.5",
-        "californiamountainsnake/simple-laravel-auth-system": "~2.2.4"
+        "californiamountainsnake/simple-laravel-auth-system": "~3.0"
     },
     "require-dev": {
         "ext-dom": "*",
