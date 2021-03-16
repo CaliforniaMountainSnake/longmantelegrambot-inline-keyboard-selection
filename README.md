@@ -10,7 +10,7 @@ Edit your project's `composer.json` file to require `californiamountainsnake/lon
     "name": "yourproject/yourproject",
     "type": "project",
     "require": {
-        "php": "^7.2",
+        "php": "^7.3",
         "californiamountainsnake/longmantelegrambot-inline-keyboard-selection": "*"
     }
 }

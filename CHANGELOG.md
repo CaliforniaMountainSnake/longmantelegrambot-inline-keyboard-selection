@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 
 
+## [4.0.0] - 2021-03-16
+### Changed
+- More smart dependencies management.
+- All lang values have been moved into the InlineKeyboardSelectionLangValues trait.
+
 ## [3.0.5] - 2020-01-14
 ### Changed
 - The package californiamountainsnake/simple-laravel-auth-system has been updated to version ~3.0.

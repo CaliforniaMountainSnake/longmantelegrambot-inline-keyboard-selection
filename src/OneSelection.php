@@ -19,12 +19,7 @@ trait OneSelection
     use SendUtils;
     use AdvancedSendUtils;
     use ArrayUtils;
-
-    /**
-     * @return string
-     */
-    abstract public static function getCommandName(): string;
-
+    use InlineKeyboardSelectionLangValues;
 
     /**
      * Select one value using InlineKeyboard.
@@ -50,14 +45,14 @@ trait OneSelection
     ) {
         $text = $_user_message->getText(true) ?? '';
         [$previousMsgId] = $this->getPrevMsgData($this->getOneSelectionTokenName());
-        $keyboard = InlineButton::buttonsArray(self::getCommandName(), $_keyboard_buttons);
+        $keyboard = InlineButton::buttonsArray(static::getCommandName(), $_keyboard_buttons);
         $errors = [];
 
         if ($previousMsgId !== null) {
             // Validation.
             $availableValues = $this->array_keys_recursive($_keyboard_buttons);
-            if (!\in_array($text, $availableValues, false)) {
-                $errors[] = __('telegrambot/keyboard_selection.wrong_value_single');
+            if (!in_array($text, $availableValues, false)) {
+                $errors[] = $this->getLangValueWrongValueSingle();
             }
 
             // Success.
@@ -72,8 +67,8 @@ trait OneSelection
             }
         }
 
-        $this->showAnyMessage($this->getOneSelectionTokenName(), $_keyboard_message_text, null, $errors, $keyboard,
-            null, null, $_is_force_del_and_send);
+        $this->showAnyMessage($this->getOneSelectionTokenName(), $_keyboard_message_text, null,
+            $errors, $keyboard, null, null, $_is_force_del_and_send);
         return null;
     }
 

@@ -6,9 +6,9 @@ use CaliforniaMountainSnake\LongmanTelegrambotInlinemenu\InlineButton\InlineButt
 use CaliforniaMountainSnake\LongmanTelegrambotUtils\AdvancedSendUtils;
 use CaliforniaMountainSnake\LongmanTelegrambotUtils\ConversationUtils;
 use CaliforniaMountainSnake\LongmanTelegrambotUtils\SendUtils;
-use CaliforniaMountainSnake\SimpleLaravelAuthSystem\AuthValidatorService;
 use CaliforniaMountainSnake\UtilTraits\ArrayUtils;
 use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Validation\Rule;
 use Longman\TelegramBot\Entities\Keyboard;
 use Longman\TelegramBot\Entities\Message;
@@ -23,16 +23,7 @@ trait MultipleSelection
     use SendUtils;
     use AdvancedSendUtils;
     use ArrayUtils;
-
-    /**
-     * @return string
-     */
-    abstract public static function getCommandName(): string;
-
-    /**
-     * @return AuthValidatorService
-     */
-    abstract public function getValidatorService(): AuthValidatorService;
+    use InlineKeyboardSelectionLangValues;
 
     /**
      * Select multiple values using InlineKeyboard.
@@ -40,10 +31,14 @@ trait MultipleSelection
      * @param array         $_keyboard_buttons             Multidimensional string array with keyboard buttons.
      * @param string        $_keyboard_message_text        The text that will be shown to user.
      * @param Message       $_user_message                 User's message telegram object.
-     * @param callable|null $_save_data_callback           The callback in which will be passed the results of selection
-     *                                                     as an array parameter. Called first relative to success or back callbacks.
-     * @param callable      $_success_callback             The callback that will be executed in case of success selection.
-     * @param callable|null $_back_callback                The callback that will be executed if the user pressed "back" button.
+     * @param callable|null $_save_data_callback           The callback in which will be passed the results of
+     *                                                     selection
+     *                                                     as an array parameter. Called first relative to success or
+     *                                                     back callbacks.
+     * @param callable      $_success_callback             The callback that will be executed in case of success
+     *                                                     selection.
+     * @param callable|null $_back_callback                The callback that will be executed if the user pressed
+     *                                                     "back" button.
      * @param array|null    $_preselected_values           Default checked values on the keyboard.
      * @param bool          $_is_force_del_and_send        Always just delete the previous message and send a new one.
      * @param bool          $_is_delete_message_on_success Do delete the message after selection has been completed?
@@ -82,7 +77,7 @@ trait MultipleSelection
             $selectionResult = $this->updateMultipleSelectionResult($text);
 
             // Check for emptiness only if "ok" button pressed.
-            if ($text === $this->getOkButtonName()) {
+            if ($text === $this->getLangValueOkButtonName()) {
                 $validator = $this->getSelectedValuesNotEmptyValidator($selectionResult);
                 $validator->fails();
             }
@@ -92,17 +87,17 @@ trait MultipleSelection
         // Process command buttons.
         if (empty($errors->toArray())) {
             // Clear.
-            if ($text === $this->getClearButtonName()) {
+            if ($text === $this->getLangValueClearButtonName()) {
                 $this->setMultipleSelectionResultNote([]);
             }
 
             // All.
-            if ($text === $this->getAllButtonName()) {
+            if ($text === $this->getLangValueAllButtonName()) {
                 $this->setMultipleSelectionResultNote($this->array_keys_recursive($_keyboard_buttons));
             }
 
             // Ok
-            if ($text === $this->getOkButtonName()) {
+            if ($text === $this->getLangValueOkButtonName()) {
                 $this->deleteMultipleSelectionMsgIfNeed($_is_delete_message_on_success);
                 $this->clearMultipleSelectionResult();
                 $_save_data_callback !== null && $_save_data_callback($selectionResult);
@@ -111,7 +106,7 @@ trait MultipleSelection
             }
 
             // Back
-            if ($_back_callback !== null && $text === $this->getBackButtonName()) {
+            if ($_back_callback !== null && $text === $this->getLangValueBackButtonName()) {
                 $this->deleteMultipleSelectionMsgIfNeed($_is_delete_message_on_success);
                 $this->clearMultipleSelectionResult();
                 $_save_data_callback !== null && $_save_data_callback($selectionResult);
@@ -141,32 +136,32 @@ trait MultipleSelection
     ): Keyboard {
         $result = $this->getMultipleSelectionResult() ?? [];
 
-        \array_walk_recursive($_keyboard_buttons, function (&$visibleValue, &$realValue) use ($result) {
-            $isButtonSelected = \in_array($realValue, $result, false);
+        array_walk_recursive($_keyboard_buttons, function (&$visibleValue, &$realValue) use ($result) {
+            $isButtonSelected = in_array($realValue, $result, false);
             if ($isButtonSelected) {
-                $visibleValue = $this->getSelectedValuePrefix() . $visibleValue;
+                $visibleValue = $this->getLangValueSelectedValuePrefix() . $visibleValue;
             }
         });
 
         $buttonsRowExtra = [];
         $buttonsRowPermanent = [
-            $this->getClearButtonName() => $this->getClearButtonName(),
-            $this->getAllButtonName() => $this->getAllButtonName(),
+            $this->getLangValueClearButtonName() => $this->getLangValueClearButtonName(),
+            $this->getLangValueAllButtonName() => $this->getLangValueAllButtonName(),
         ];
 
         if ($_back_callback === null) {
-            $buttonsRowPermanent[$this->getOkButtonName()] = $this->getOkButtonName();
+            $buttonsRowPermanent[$this->getLangValueOkButtonName()] = $this->getLangValueOkButtonName();
         } else {
             $buttonsRowExtra = [
-                $this->getBackButtonName() => $this->getBackButtonName(),
-                $this->getOkButtonName() => $this->getOkButtonName(),
+                $this->getLangValueBackButtonName() => $this->getLangValueBackButtonName(),
+                $this->getLangValueOkButtonName() => $this->getLangValueOkButtonName(),
             ];
         }
 
         $_keyboard_buttons[] = $buttonsRowPermanent;
         !empty($buttonsRowExtra) && $_keyboard_buttons[] = $buttonsRowExtra;
 
-        return InlineButton::buttonsArray(self::getCommandName(), $_keyboard_buttons);
+        return InlineButton::buttonsArray(static::getCommandName(), $_keyboard_buttons);
     }
 
     //------------------------------------------------------------------------------------------------------------------
@@ -205,7 +200,7 @@ trait MultipleSelection
     private function createMultipleSelectionResult(?array $_preselected_values = null): array
     {
         $result = $this->getMultipleSelectionResult();
-        $defaultSet = \array_values($_preselected_values ?? []);
+        $defaultSet = array_values($_preselected_values ?? []);
         if ($result === null) {
             $this->setMultipleSelectionResultNote($defaultSet);
             return $defaultSet;
@@ -246,12 +241,12 @@ trait MultipleSelection
         $selectionResult = $this->getMultipleSelectionResult();
 
         // Skip command buttons.
-        if (\in_array($_text, $this->getAllCommandButtonsNames(), true)) {
+        if (in_array($_text, $this->getAllCommandButtonsNames(), true)) {
             return $selectionResult;
         }
 
         // Update values.
-        $searchedKey = \array_search($_text, $selectionResult, false);
+        $searchedKey = array_search($_text, $selectionResult, false);
         if ($searchedKey === false) {
             $selectionResult[] = $_text;
         } else {
@@ -272,13 +267,14 @@ trait MultipleSelection
      */
     private function getButtonsValidator(string $_current_text, array $_keyboard_buttons): Validator
     {
-        $availableValues = \array_merge($this->array_keys_recursive($_keyboard_buttons),
+        $availableValues = array_merge($this->array_keys_recursive($_keyboard_buttons),
             $this->getAllCommandButtonsNames());
 
-        return $this->getValidatorService()->makeValidator(
+
+        return ValidatorFacade::make(
             ['text' => $_current_text],
             ['text' => Rule::in($availableValues)],
-            ['in' => __('telegrambot/keyboard_selection.wrong_value_multiple')]);
+            ['in' => $this->getLangValueWrongValueMultiple()]);
     }
 
     /**
@@ -288,7 +284,7 @@ trait MultipleSelection
      */
     private function getSelectedValuesNotEmptyValidator(array $_selected_values): Validator
     {
-        return $this->getValidatorService()->makeValidator(
+        return ValidatorFacade::make(
             ['values' => $_selected_values],
             [
                 'values' => [
@@ -299,8 +295,8 @@ trait MultipleSelection
                 ]
             ],
             [
-                'required' => __('telegrambot/keyboard_selection.nothing_selected_error'),
-                'min' => __('telegrambot/keyboard_selection.nothing_selected_error'),
+                'required' => $this->getLangValueNothingSelectedError(),
+                'min' => $this->getLangValueNothingSelectedError(),
             ]);
     }
 
@@ -315,55 +311,15 @@ trait MultipleSelection
     }
 
     /**
-     * @return string
-     */
-    private function getSelectedValuePrefix(): string
-    {
-        return __('telegrambot/keyboard_selection.selected_value_prefix');
-    }
-
-    /**
      * @return array
      */
     private function getAllCommandButtonsNames(): array
     {
         return [
-            $this->getOkButtonName(),
-            $this->getBackButtonName(),
-            $this->getAllButtonName(),
-            $this->getClearButtonName()
+            $this->getLangValueOkButtonName(),
+            $this->getLangValueBackButtonName(),
+            $this->getLangValueAllButtonName(),
+            $this->getLangValueClearButtonName()
         ];
-    }
-
-    /**
-     * @return string
-     */
-    private function getOkButtonName(): string
-    {
-        return __('telegrambot/keyboard_selection.button_ok');
-    }
-
-    /**
-     * @return string
-     */
-    private function getBackButtonName(): string
-    {
-        return __('telegrambot/keyboard_selection.button_back');
-    }
-
-    /**
-     * @return string
-     */
-    private function getClearButtonName(): string
-    {
-        return __('telegrambot/keyboard_selection.button_clear');
-    }
-
-    /**
-     * @return string
-     */
-    private function getAllButtonName(): string
-    {
-        return __('telegrambot/keyboard_selection.button_all');
     }
 }
